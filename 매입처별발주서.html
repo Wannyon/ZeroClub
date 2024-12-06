@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>매입처별 발주 맵핑</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- JSZip CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  <!-- FileSaver CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>ZeroClub</h1>
+    <h2>매입처별 발주 맵핑</h2>
+  </div>
+  <div class="upload-section">
+    <div class="file-input-wrapper">
+      <input type="file" id="file-input" accept=".xlsx, .xls" class="file-input">
+      <label for="file-input" class="file-label">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        통합 발주서 선택
+      </label>
+      <div id="error-message" class="error-message"></div>
+    </div>
+    <p id="file-name" class="file-name"></p>
+    <button id="process-btn" class="process-btn">처리 시작</button>
+  </div>
+  <div class="result-header">
+    <h2>결과</h2>
+    <button id="downloadAll-btn" class="downloadAll-btn">전체 다운로드</button>
+  </div>
+  <div id="result-section" class="result-section">
+    <div id="result-list" class="result-list"></div>
+  </div>
+</div>
+<script>
+  document
+    .getElementById("file-input")
+    .addEventListener("change", async (event) => {
+      const fileInput = document.getElementById("file-input");
+      const file = fileInput.files[0];
+      if (file) {
+        console.log("File input changed!", event.target.files);
+      } else {
+        alert("파일을 선택해주세요.");
+        return;
+      }
+
+      // 업로드 파일 표시
+      const fileNameDisplay = document.getElementById("file-name");
+      fileNameDisplay.textContent = file.name;
+    });
+
+  document.getElementById("process-btn").addEventListener("click", () => {
+    const fileInput = document.getElementById("file-input");
+    const file = fileInput.files[0];
+    const errorMessage = document.getElementById("error-message");
+
+    if (!file) {
+      errorMessage.textContent = "엑셀 파일을 업로드해주세요!";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        processWorkbook(workbook);
+        errorMessage.textContent = ""; // Clear 에러메세지
+      } catch (error) {
+        errorMessage.textContent = error;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // 개별 다운로드
+  function processWorkbook(workbook) {
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]; // 첫 번째 시트 사용
+    const data = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      dateNF: "yyyy.mm.dd hh:mm AM/PM",
+      cellDates: true, // 날짜 데이터를 Date 객체로 변환
+    }); // 헤더가 있는 데이터 추출
+    console.log("headerData", data);
+    const supplierData = categorizeBySupplier(data);
+    console.log("supplierData", supplierData);
+
+    const resultList = document.getElementById("result-list");
+    resultList.innerHTML = ""; // 기존 리스트 내용을 클리어
+
+    Object.keys(supplierData).forEach((supplier) => {
+      const mappedData = mapDataToSupplierFormat(
+        supplierData[supplier],
+        supplier,
+      );
+      console.log("mappedData", mappedData);
+
+      const newWorkbook = XLSX.utils.book_new();
+      const newSheet = XLSX.utils.json_to_sheet(mappedData, {
+        dateNF: "yyyy.mm.dd hh:mm AM/PM",
+        cellDates: true,
+      });
+      const fileName = `${supplier}_프라이스잇_발주서.xlsx`;
+      XLSX.utils.book_append_sheet(newWorkbook, newSheet, supplier);
+
+      // 매입처 리스트 요소 생성
+      // 다운로드 버튼 생성
+      const button = document.createElement("button");
+      button.textContent = `다운로드`;
+      button.addEventListener("click", () => {
+        XLSX.writeFile(newWorkbook, fileName);
+      });
+
+      // result-item 요소 생성
+      const supplyDiv = document.createElement("div");
+      supplyDiv.className = "result-item";
+      supplyDiv.textContent = fileName;
+
+      // result-item-container 요소 생성
+      const supplyDivContainer = document.createElement("div");
+      supplyDivContainer.className = "result-item-container";
+      supplyDivContainer.textContent = supplier;
+
+      // container 안에 요소 생성
+      supplyDivContainer.appendChild(supplyDiv);
+      supplyDivContainer.appendChild(button);
+
+      // resultList에 요소 추가
+      resultList.appendChild(supplyDivContainer);
+    });
+  }
+
+  // 전체 다운로드
+  document.querySelector(".downloadAll-btn").addEventListener("click", () => {
+    downloadAllFiles(); // 모든 매입처 데이터를 처리하고 ZIP 파일로 저장합니다.
+  });
+
+  function downloadAllFiles() {
+    const zip = new JSZip(); // ZIP 객체 생성
+    const fileInput = document.getElementById("file-input");
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const dataHeader = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: false,
+        dateNF: "yyyy.mm.dd hh:mm AM/PM",
+        cellDates: true,
+      });
+      const supplierData = categorizeBySupplier(dataHeader);
+
+      Object.keys(supplierData).forEach((supplier) => {
+        const mappedData = mapDataToSupplierFormat(
+          supplierData[supplier],
+          supplier,
+        );
+        const newWorkbook = XLSX.utils.book_new();
+        const newSheet = XLSX.utils.json_to_sheet(mappedData, {
+          dateNF: "yyyy.mm.dd hh:mm:ss",
+          cellDates: true,
+        });
+        XLSX.utils.book_append_sheet(newWorkbook, newSheet, supplier);
+
+        const wbout = XLSX.write(newWorkbook, {
+          bookType: "xlsx",
+          type: "binary",
+        });
+        zip.file(`${supplier}_프라이스잇_발주서.xlsx`, wbout, { binary: true });
+      });
+
+      zip.generateAsync({ type: "blob" }).then(function (content) {
+        saveAs(content, "프라이스잇_발주서.zip");
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // 매입처 분류 함수
+  function categorizeBySupplier(data) {
+    const headers = data[0]; // 통합 발주서 column
+    console.log("categorizeBySupplier_headers", headers);
+    const supplierIndex = headers.findIndex((header) => header === "매입처"); // 매입처 열이 존재해야함.
+    console.log("supplierIndex", supplierIndex);
+    const categorizedData = {};
+
+    data.slice(1).forEach((row) => {
+      const supplier = row[supplierIndex];
+      if (!categorizedData[supplier]) {
+        categorizedData[supplier] = [];
+      }
+      categorizedData[supplier].push(row);
+    });
+
+    return categorizedData;
+  }
+
+  function mapDataToSupplierFormat(data, supplier) {
+    const headers = supplierHeaders[supplier] || columnHeader.common; // mapping.js에 매입처 양식이 없으면 common 양식으로 작성.
+    return data.map((row) => {
+      const newRow = {};
+      Object.keys(headers).forEach((key) => {
+        const columnIndex = headers[key].charCodeAt(0) - "A".charCodeAt(0); // 65 - 65 = 0
+        newRow[key] =
+          typeof row[columnIndex] === "string"
+            ? row[columnIndex].trim()
+            : row[columnIndex]; // 셀 데이터에서 불필요한 공백 제거
+      });
+      return newRow;
+    });
+  }
+
+  // 매입처 양식
+  const columnHeader = {
+    common: {
+      주문일시: "A",
+      품목명: "B",
+      박스수량: "C",
+      "주문자 성명": "D",
+      "주문자 전화번호": "E",
+      "받는분 성명": "F",
+      "받는분 전화번호": "G",
+      "받는분 우편번호": "H",
+      "받는분 주소": "I",
+      배송메세지1: "J",
+      공급가: "K",
+      택배사: "L",
+      송장번호: "M",
+      코드: "N",
+      고객주문번호: "O",
+      빈칸: "P",
+      매입처: "Q",
+    },
+  };
+
+  const supplierHeaders = {
+    더자인: { ...columnHeader.common },
+    해담별: { ...columnHeader.common },
+    비에스엠푸드: { ...columnHeader.common },
+    제트언스: { ...columnHeader.common },
+    인하네: {
+      품목명: "B",
+      보내는분주소: "Z",
+      고객주문번호: "O",
+      보내는분성명: "Z",
+      보내는분전화번호: "Z",
+      보내는분기타연락처: "Z",
+      받는분성명: "F",
+      받는분전화번호: "G",
+      받는분기타연락처: "Z",
+      "받는분주소(전체, 분할)": "I",
+      박스수량: "C",
+      배송메시지: "J",
+      경로: "Z",
+    },
+    로운푸드: {
+      주문자명: "D",
+      주문자연락처: "E",
+      수령인명: "F",
+      수령인연락처: "G",
+      우편번호: "H",
+      주소: "I",
+      고객선택옵션: "Z",
+      주문수량: "C",
+      배송시요청사항: "J",
+      택배사: "L",
+      배송번호: "M",
+    },
+    기타매입처: { ...columnHeader.common },
+  };
+</script>
+</body>
+<style>
+  :root {
+    --primary-color: #3498db;
+    --primary-dark: #2980b9;
+    --secondary-color: #2ecc71;
+    --secondary-dark: #27ae60;
+    --background-color: #ecf0f1;
+    --text-color: #2c3e50;
+    --error-color: #e74c3c;
+  }
+
+  body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    margin: 0;
+    padding: 0;
+  }
+
+  .container {
+    margin: 2rem auto;
+    padding: 2rem;
+    width: 800px;
+    max-width: 800px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .header h1, h2{
+    margin: 0;
+    text-align: center;
+    color: var(--primary-color);
+  }
+
+  .header h2 {
+    margin-bottom: 2rem;
+    color: var(--primary-dark);
+  }
+
+  .upload-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin: 2rem auto;
+    padding: 1rem;
+    min-width: 450px;
+    border-radius: 0.5rem;
+    width: 50%;
+    background-color: var(--background-color);
+  }
+
+  .result-header {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--primary-dark);
+  }
+
+  .downloadAll-btn {
+    padding: 0.5rem 1rem;
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  .downloadAll-btn:hover {
+    background-color: var(--secondary-dark);
+  }
+
+  .file-input-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+  }
+
+  .file-input {
+    position: absolute;
+    font-size: 100px;
+    right: 0;
+    top: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .file-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  .icon {
+    margin-right: 0.5rem;
+  }
+
+  .file-name {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .process-btn {
+    padding: 0.5rem 1rem;
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  .process-btn:hover {
+    background-color: var(--secondary-dark);
+  }
+
+  .error-message {
+    color: var(--error-color);
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .result-section {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: center;
+    width: 100%;
+    margin-top: 2rem;
+  }
+
+  .result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .result-item-container {
+    display: grid;
+    grid-template-columns: 2fr 4fr 1fr;
+    gap: 0.5rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    align-items: center;
+  }
+
+  .result-item-container span {
+    display: flex;
+    align-items: center;
+  }
+
+  .result-item-container svg {
+    margin-right: 0.5rem;
+  }
+
+  .result-item-container button {
+    padding: 0.25rem 0.5rem;
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  .result-item-container button:hover {
+    background-color: var(--secondary-dark);
+  }
+
+  .result-item {
+    width: 100%;
+  }
+
+  @media (max-width: 600px) {
+    .container {
+      padding: 1rem;
+    }
+
+    .result-item-container {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+  }
+
+
+</style>
+</html>

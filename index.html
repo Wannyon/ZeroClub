@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>매입처별 발주 맵핑</title>
+    <link rel="stylesheet" href="./css/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- JSZip CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <!-- FileSaver CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="./js/script.js" type="module"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>ZeroClub</h1>
+        <h2>매입처별 발주 맵핑</h2>
+      </div>
+      <div class="upload-section">
+        <div class="file-input-wrapper">
+          <input type="file" id="file-input" accept=".xlsx, .xls" class="file-input">
+          <label for="file-input" class="file-label">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            통합 발주서 선택
+          </label>
+          <div id="error-message" class="error-message"></div>
+        </div>
+        <p id="file-name" class="file-name"></p>
+        <button id="process-btn" class="process-btn">처리 시작</button>
+      </div>
+      <div class="result-header">
+        <h2>결과</h2>
+        <button id="downloadAll-btn" class="downloadAll-btn">전체 다운로드</button>
+      </div>
+      <div id="result-section" class="result-section">
+        <div id="result-list" class="result-list"></div>
+      </div>
+    </div>
+  </body>
+</html>
