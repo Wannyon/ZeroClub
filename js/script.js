@@ -234,22 +234,49 @@ function mapDataToSupplierFormat(data, supplier) {
 }
 
 // 문자열 -> 날짜 형식으로 변환
+// 날짜 형식 "MM/DD/YY"를 "YYYY-MM-DD"로 변환
 function parseDateString(dateStr) {
   if (typeof dateStr === "string") {
-    // 날짜 형식 "MM/DD/YY"를 "YYYY-MM-DD"로 변환
-    const parts = dateStr.split("/");
-    if (parts.length === 3) {
-      let year = parseInt(parts[2], 10);
-      if (year < 100) {
-        // YY -> YYYY
-        year += year < 50 ? 2000 : 1900; // 50을 기준으로 2000 또는 1900을 더함
+    // 날짜와 시간을 공백으로 분리
+    const [datePart, timePart] = dateStr.split(" ");
+    let year, month, day;
+
+    // 날짜 처리
+    if (datePart.includes("/")) {
+      // 날짜가 "MM/DD/YY" 형식인 경우
+      const parts = datePart.split("/");
+      if (parts.length === 3) {
+        year = parseInt(parts[2], 10);
+        year += year < 50 ? 2000 : 1900; // YY -> YYYY 변환, 50을 기준으로 2000 또는 1900을 더함(50년 이후는 모름.. 두자리 데이터의 한계...)
+        month = parts[0].padStart(2, "0");
+        day = parts[1].padStart(2, "0");
       }
-      const month = parts[0].padStart(2, "0");
-      const day = parts[1].padStart(2, "0");
+    } else if (datePart.includes(".")) {
+      // 날짜가 "YYYY.MM.DD" 형식인 경우
+      const parts = datePart.split(".");
+      if (parts.length === 3) {
+        year = parts[0];
+        month = parts[1].padStart(2, "0");
+        day = parts[2].padStart(2, "0");
+      }
+    }
+
+    // 시간 처리
+    if (timePart) {
+      let [hours, minutes] = timePart.split(":");
+      // 시간 정규화 (24시간제 지원)
+      if (timePart.toLowerCase().includes("pm") && hours !== "12") {
+        hours = (parseInt(hours, 10) + 12).toString();
+      }
+      hours = hours.padStart(2, "0");
+      minutes = minutes.replace(/[^0-9]/g, "").padStart(2, "0"); // AM/PM 문자 제거 및 포맷
+
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    } else {
       return `${year}-${month}-${day}`;
     }
   }
-  return dateStr; // 변환할 수 없는 형식은 원래 문자열 반환
+  return dateStr; // 변환할 수 없는 형식은 원래 값을 반환
 }
 
 // 날짜 형식으로 들어올때, 원하는 날짜 형식으로 포맷팅
@@ -266,18 +293,4 @@ function formatDateString(date) {
   const minutes = date.getMinutes().toString().padStart(2, "0");
 
   return `${year}-${month}-${day} ${hours}:${minutes}`;
-
-  // const [datePart, timePart] = dateStr.split(" "); // insert data: 2024.12.3  9:57:00 PM
-  // const [year, month, day] = datePart.split(".");
-  // let [hours, minutes, seconds] = timePart.split(":");
-  //
-  // // PM 처리 및 시간 조정
-  // if (seconds.includes("PM") && hours !== "12") {
-  //   hours = parseInt(hours, 10) + 12;
-  // }
-  // seconds = seconds.replace("PM", "").replace("AM", "");
-  //
-  // // 날짜 객체 생성 및 포맷팅
-  // const date = new Date(year, month - 1, day, hours, minutes, seconds);
-  // return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")} ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
