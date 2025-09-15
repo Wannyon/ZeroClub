@@ -170,11 +170,12 @@
       fileInfo.textContent = `${filename} — 판매사 ${entries.length}개`;
 
       const today = todayYYYYMMDD();
+      const origBase = (filename || '').replace(/\.[^.]+$/, ''); // 원본 파일 이름
 
       entries.sort((a,b)=> a.seller.localeCompare(b.seller, 'ko'));
 
       entries.forEach(ent => {
-        const fileBase = `${ent.brand}-${ent.seller}-${today}-${(batchInput.value||'1차')}_${ent.orderCount}(${ent.qtySum})`;
+        const fileBase = `${ent.brand}_${ent.seller}_${today}_${(batchInput.value||'1차')}_${ent.orderCount}(${ent.qtySum})_${origBase}`;
 
         const item = document.createElement('div');
         item.className = 'item';
@@ -208,7 +209,7 @@
       });
 
       // bind ZIP button
-      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1');
+      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1', origBase);
     }
 
     function aoaSubsetToWorkbook(headers, body){
@@ -224,12 +225,12 @@
       XLSX.writeFile(wb, `${fileBase}.xlsx`);
     }
 
-    async function downloadAll(headers, entries, today, batch){
+    async function downloadAll(headers, entries, today, batch, origBase){
       const zip = new JSZip();
       for(const ent of entries){
         const wb = aoaSubsetToWorkbook(headers, ent.rows);
         const buf = toArrayBuffer(wb);
-        const name = `${ent.brand}-${ent.seller}-${today}-${batch}_${ent.orderCount}(${ent.qtySum}).xlsx`;
+        const name = `${ent.brand}_${ent.seller}_${today}_${batch}_${ent.orderCount}(${ent.qtySum})_${origBase}.xlsx`;
         zip.file(name, buf);
       }
       const blob = await zip.generateAsync({ type: 'blob' });
