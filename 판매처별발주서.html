@@ -87,13 +87,18 @@
       // 'A' -> 0, 'T' -> 19, 'V' -> 21 ...
       return ch.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
     };
+
+    // 날짜 변환
     const todayYYYYMMDD = () => {
       const d = new Date();
       const y = d.getFullYear();
       const m = String(d.getMonth()+1).padStart(2,'0');
       const day = String(d.getDate()).padStart(2,'0');
+      console.log("d", d);
       return `${y}${m}${day}`; // e.g. 20250915
     };
+
+    // 바이너리 ArrayBuffer 변환 (Zip)
     const toArrayBuffer = (wb, sheetName) => {
       const wbout = XLSX.write(wb, {bookType:'xlsx', type:'binary'});
       const buf = new ArrayBuffer(wbout.length);
@@ -113,6 +118,7 @@
         try{
           const data = new Uint8Array(e.target.result);
           const wb = XLSX.read(data, { type: 'array' });
+          console.log("wb", wb);
           const ws = wb.Sheets[wb.SheetNames[0]]; // 첫 시트 사용
           const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:false });
           if(aoa.length === 0){ throw new Error('시트가 비어있습니다.'); }
@@ -135,6 +141,7 @@
             if(!groups.has(key)) groups.set(key, []);
             groups.get(key).push(r);
           });
+          console.log("groups", groups);
 
           // derive brand string per group (V). If mixed, use first non-empty; if none -> '브랜드미지정'
           const entries = [];
@@ -145,6 +152,7 @@
 
             entries.push({ seller, brand: brandCand, orderCount, qtySum, rows: gRows });
           });
+          console.log("entries", entries);
 
           // Render list + enable per-file & all-zip download
           renderResults(file.name, headers, entries);
@@ -200,7 +208,7 @@
       });
 
       // bind ZIP button
-      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1차');
+      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1');
     }
 
     function aoaSubsetToWorkbook(headers, body){
