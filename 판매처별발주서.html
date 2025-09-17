@@ -42,7 +42,7 @@
 <div class="wrap">
   <div class="card">
     <h1>판매사별 엑셀 매핑 자동화</h1>
-    <p class="desc"> 엑셀을 업로드하면 파일명은 <span class="mono">"브랜드-판매사명-오늘날짜-차수번호_주문건수(수량)"</span> 형식으로 생성합니다. <br/><b>T열(매출처)</b>로 분류하여 판매사별 파일을 만들고, 브랜드는 <b>V열(브랜드명)</b>에서 읽습니다. 날짜는 <span class="mono">YYYYMMDD</span> 형식으로 표시됩니다. </p>
+    <p class="desc"> 엑셀을 업로드하면 파일명은 <span class="mono">"브랜드-판매사명-오늘날짜-차수번호_주문건수(수량)"</span> 형식으로 생성합니다. <br/><b>T열(매출처)</b>로 분류하여 판매사별 파일을 만들고, 브랜드는 <b>V열(브랜드명)</b>에서 읽습니다. 날짜는 <span class="mono">YYYYMMDDHHmm</span> 형식으로 표시됩니다. </p>
     <div class="controls">
       <div>
         <label>엑셀 업로드 (.xlsx/.xls)</label>
@@ -90,13 +90,15 @@
     };
 
     // 날짜 변환
-    const todayYYYYMMDD = () => {
+    const todayYYYYMMDDHHmm = () => {
       const d = new Date();
       const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      const day = String(d.getDate()).padStart(2,'0');
+      const M = String(d.getMonth() + 1).padStart(2,'0');
+      const D = String(d.getDate()).padStart(2,'0');
+      const H = String(d.getHours()).padStart(2,'0');
+      const m = String(d.getMinutes()).padStart(2,'0');
       console.log("d", d);
-      return `${y}${m}${day}`; // e.g. 20250915
+      return `${y}${M}${D}${H}${m}`; // e.g. 202509151430
     };
 
     // 바이너리 ArrayBuffer 변환 (Zip)
@@ -182,7 +184,7 @@
       const totalOrders = entries.reduce((sum, ent) => sum + (ent.orderCount || 0), 0);
       fileInfo.textContent = `${filename} — 판매사 ${entries.length}개 · 전체 주문건수 ${totalOrders}건`; // fileInfo
 
-      const today = todayYYYYMMDD();
+      const today = todayYYYYMMDDHHmm();
       const origBase = (filename || '').replace(/\.[^.]+$/, ''); // 원본 파일 이름
 
       entries.sort((a,b)=> a.seller.localeCompare(b.seller, 'ko'));
