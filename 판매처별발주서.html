@@ -124,8 +124,10 @@
           const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:false });
           if(aoa.length === 0){ throw new Error('시트가 비어있습니다.'); }
 
-          const headers = aoa[0];
-          const rows = aoa.slice(1).filter(r => r && r.length>0);
+          const headers = aoa[0]; // aoa 배열의 첫 요소를 헤더로 사용
+          const rows = aoa
+            .slice(1)
+            .filter(r => Array.isArray(r) && r.some(cell => String(cell ?? "").trim() !== "")); // 헤더를 제외한 데이터 row (모든 셀이 공백일 경우 제거)
 
           // Column positions by letter
           const SELLER_COL = letterToIndex('T'); // 매출처
