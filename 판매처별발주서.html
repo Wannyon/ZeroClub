@@ -188,7 +188,7 @@
       entries.sort((a,b)=> a.seller.localeCompare(b.seller, 'ko'));
 
       entries.forEach(ent => {
-        const fileBase = `${ent.brand}_${ent.seller}_${today}_${(batchInput.value||'1차')}_${ent.orderCount}(${ent.qtySum})_${origBase}`;
+        const fileBase = `${ent.brand}-${ent.seller}-${today}-${(batchInput.value||'1차')}-${ent.orderCount}(${ent.qtySum})-${origBase}`;
 
         const item = document.createElement('div');
         item.className = 'item';
@@ -243,11 +243,11 @@
       for(const ent of entries){
         const wb = aoaSubsetToWorkbook(headers, ent.rows);
         const buf = toArrayBuffer(wb);
-        const name = `${ent.brand}_${ent.seller}_${today}_${batch}_${ent.orderCount}(${ent.qtySum})_${origBase}.xlsx`;
+        const name = `${ent.brand}-${ent.seller}-${today}-${batch}-${ent.orderCount}(${ent.qtySum})-${origBase}.xlsx`;
         zip.file(name, buf);
       }
       const blob = await zip.generateAsync({ type: 'blob' });
-      saveAs(blob, `판매사별_${today}_${batch}_${origBase}.zip`);
+      saveAs(blob, `판매사별-${today}-${batch}-${origBase}.zip`);
     }
   })();
 </script>
