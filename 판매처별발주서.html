@@ -36,6 +36,11 @@
     .item { display: grid; grid-template-columns: 1fr 2fr .6fr .6fr auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid #edf2f7; border-radius: 10px; background: #fff; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #2d3748; }
     .tag { display:inline-block; background:#edf2f7; color:#2d3748; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+
+    /* sorter controls */
+    .sorter { display:flex; gap:8px; align-items:center; flex-wrap: wrap; margin-right: 8px; }
+    .sorter select { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background:#fff; height: 36px; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   </style>
 </head>
 <body>
@@ -61,6 +66,20 @@
     <div class="results" id="results" style="display:none;">
       <div class="result-head">
         <div class="tag" id="file-info">파일 정보</div>
+        <div class="sorter">
+          <label for="sort-key" class="sr-only">정렬 기준</label>
+          <select id="sort-key">
+            <option value="seller">판매처</option>
+            <option value="file">파일명</option>
+            <option value="orderCount">주문건수</option>
+            <option value="qtySum">수량</option>
+          </select>
+          <label for="sort-order" class="sr-only">정렬 방향</label>
+          <select id="sort-order">
+            <option value="asc">오름차순</option>
+            <option value="desc">내림차순</option>
+          </select>
+        </div>
         <div>
           <button id="download-all" class="btn secondary">전체 ZIP 다운로드</button>
         </div>
@@ -82,6 +101,8 @@
     const list = $('#list');
     const fileInfo = $('#file-info');
     const downloadAllBtn = $('#download-all');
+    const sortKeySel = $('#sort-key');
+    const sortOrderSel = $('#sort-order');
 
     // Helpers
     const letterToIndex = (ch) => {
@@ -184,46 +205,83 @@
       const totalOrders = entries.reduce((sum, ent) => sum + (ent.orderCount || 0), 0);
       const totalOrderCounts = entries.reduce((sum, ent) => sum + (ent.qtySum || 0), 0);
       fileInfo.innerHTML = `${filename} — 판매사 <strong>${entries.length}개</strong> · 전체 주문건수 <strong>${totalOrders}건</strong> · 전체 주문수량 <strong>${totalOrderCounts}개</strong>` // fileInfo
-      // fileInfo.textContent = `${filename} — 판매사 ${entries.length}개 · 전체 주문건수 ${totalOrders}건 · 전체 주문수량 ${totalOrderCounts}개`;
 
       const today = todayYYYYMMDDHHmm();
       const origBase = (filename || '').replace(/\.[^.]+$/, ''); // 원본 파일 이름
 
-      entries.sort((a,b)=> a.seller.localeCompare(b.seller, 'ko'));
+      if (sortKeySel) sortKeySel.value = 'qtySum';
+      if (sortOrderSel) sortOrderSel.value = 'desc';
 
-      entries.forEach(ent => {
-        const fileBase = `${ent.brand}-${ent.seller}-${today}-${(batchInput.value||'1차')}-${ent.orderCount}(${ent.qtySum})-${origBase}`;
+      function buildFileBase(ent) {
+        return `${ent.brand}-${ent.seller}-${(batchInput.value||'1차')}-${ent.orderCount}(${ent.qtySum})-${today}-${origBase}`;
+      }
 
-        const item = document.createElement('div');
-        item.className = 'item';
+      function renderList(arr) {
+        list.innerHTML = '';
+        arr.forEach(ent => {
+          const fileBase = buildFileBase(ent);
 
-        const colSeller = document.createElement('div');
-        colSeller.innerHTML = `<strong>${ent.seller}</strong>`;
+          const item = document.createElement('div');
+          item.className = 'item';
 
-        const colFile = document.createElement('div');
-        colFile.innerHTML = `<span class="mono">${fileBase}.xlsx</span>`;
+          const colSeller = document.createElement('div');
+          colSeller.innerHTML = `<strong>${ent.seller}</strong>`;
 
-        const colCount = document.createElement('div');
-        colCount.innerHTML = `<span class="tag">주문건수: ${ent.orderCount}</span>`;
+          const colFile = document.createElement('div');
+          colFile.innerHTML = `<span class="mono">${fileBase}.xlsx</span>`;
 
-        const colQty = document.createElement('div');
-        colQty.innerHTML = `<span class="tag">수량: ${ent.qtySum}</span>`;
+          const colCount = document.createElement('div');
+          colCount.innerHTML = `<span class="tag">주문건수: ${ent.orderCount}</span>`;
 
-        const colBtn = document.createElement('div');
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = '다운로드';
-        btn.addEventListener('click', () => downloadOne(headers, ent.rows, fileBase));
-        colBtn.appendChild(btn);
+          const colQty = document.createElement('div');
+          colQty.innerHTML = `<span class="tag">수량: ${ent.qtySum}</span>`;
 
-        item.appendChild(colSeller);
-        item.appendChild(colFile);
-        item.appendChild(colCount);
-        item.appendChild(colQty);
-        item.appendChild(colBtn);
+          const colBtn = document.createElement('div');
+          const btn = document.createElement('button');
+          btn.className = 'btn';
+          btn.textContent = '다운로드';
+          btn.addEventListener('click', () => downloadOne(headers, ent.rows, fileBase));
+          colBtn.appendChild(btn);
 
-        list.appendChild(item);
-      });
+          item.appendChild(colSeller);
+          item.appendChild(colFile);
+          item.appendChild(colCount);
+          item.appendChild(colQty);
+          item.appendChild(colBtn);
+
+          list.appendChild(item);
+        });
+      }
+
+      function sortEntries(arr) {
+        const key = sortKeySel ? sortKeySel.value : 'qtySum';
+        const order = sortOrderSel ? sortOrderSel.value : 'desc';
+
+        return [...arr].sort((a, b) => {
+          let va, vb;
+          switch(key) {
+            case 'seller': va = a.seller; vb = b.seller; break;
+            case 'file': va = buildFileBase(a); vb = buildFileBase(b); break;
+            case 'orderCount': va = a.orderCount; vb = b.orderCount; break;
+            case 'qtySum': va = a.qtySum; vb = b.qtySum; break;
+            default: va = a.seller; vb = b.seller;
+          }
+          if(typeof va === 'string') va = va.toLowerCase();
+          if(typeof vb === 'string') vb = vb.toLowerCase();
+
+          if(va < vb) return order === 'asc' ? -1 : 1;
+          if(va > vb) return order === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      renderList(sortEntries(entries));
+      if (sortKeySel) {
+        sortKeySel.onchange = () => renderList(sortEntries(entries));
+      }
+      if (sortOrderSel) {
+        sortOrderSel.onchange = () => renderList(sortEntries(entries));
+      }
 
       // bind ZIP button
       downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1차', origBase);
@@ -247,7 +305,7 @@
       for(const ent of entries){
         const wb = aoaSubsetToWorkbook(headers, ent.rows);
         const buf = toArrayBuffer(wb);
-        const name = `${ent.brand}-${ent.seller}-${today}-${batch}-${ent.orderCount}(${ent.qtySum})-${origBase}.xlsx`;
+        const name = `${ent.brand}-${ent.seller}-${batch}-${ent.orderCount}(${ent.qtySum})--${today}${origBase}.xlsx`;
         zip.file(name, buf);
       }
       const blob = await zip.generateAsync({ type: 'blob' });
