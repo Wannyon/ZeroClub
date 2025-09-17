@@ -182,7 +182,8 @@
       list.innerHTML = '';  // clear
 
       const totalOrders = entries.reduce((sum, ent) => sum + (ent.orderCount || 0), 0);
-      fileInfo.textContent = `${filename} — 판매사 ${entries.length}개 · 전체 주문건수 ${totalOrders}건`; // fileInfo
+      const totalOrderCounts = entries.reduce((sum, ent) => sum + (ent.qtySum || 0), 0);
+      fileInfo.textContent = `${filename} — 판매사 ${entries.length}개 · 전체 주문건수 ${totalOrders}건 · 전체 주문수량 ${totalOrderCounts}개`; // fileInfo
 
       const today = todayYYYYMMDDHHmm();
       const origBase = (filename || '').replace(/\.[^.]+$/, ''); // 원본 파일 이름
