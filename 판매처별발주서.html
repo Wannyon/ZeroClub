@@ -134,7 +134,13 @@
           const BRAND_COL  = letterToIndex('V'); // 브랜드명
 
           // quantity index: try to find header exactly '수량', else fallback null
-          let qtyIdx = headers.findIndex(h => String(h||'').trim() === '수량');
+          const candidates = ['수량', '주문수량', '개수'];
+          const normalize = s => String(s || '').toLowerCase().replace(/\s+/g, ''); // 공백제거 & 소문자화
+
+          let qtyIdx = headers.findIndex(h => {
+            const hd = normalize(h);
+            return candidates.some(c => hd === normalize(c));
+          });
           if(qtyIdx < 0) qtyIdx = -1; // default to each row =1
 
           // Group by seller (T)
