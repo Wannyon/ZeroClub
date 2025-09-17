@@ -157,7 +157,9 @@
           groups.forEach((gRows, seller) => {
             const brandCand = (gRows.map(r => (r[BRAND_COL]||'').toString().trim()).filter(Boolean))[0] || '브랜드미지정';
             const orderCount = gRows.length;
-            const qtySum = gRows.reduce((acc, r) => acc + (qtyIdx>=0 ? (Number(r[qtyIdx])||0) : 1), 0);
+
+            const parseQty = v => Number(String(v ?? '').replace(/[,]/g, '')) || 0; // 쉼표/공백/문자 섞임 방지
+            const qtySum = gRows.reduce((acc, r) => acc + (qtyIdx>=0 ? parseQty(r[qtyIdx]) : 1), 0);
 
             entries.push({ seller, brand: brandCand, orderCount, qtySum, rows: gRows });
           });
