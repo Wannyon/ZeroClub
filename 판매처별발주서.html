@@ -50,7 +50,7 @@
       </div>
       <div>
         <label>차수번호 (기본값: 1)</label>
-        <input id="batch" type="text" value="1" placeholder="예) 1" />
+        <input id="batch" type="text" value="1차" placeholder="예) 1차" />
       </div>
       <div>
         <button id="process" class="btn">분류 실행</button>
@@ -226,7 +226,7 @@
       });
 
       // bind ZIP button
-      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1', origBase);
+      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1차', origBase);
     }
 
     function aoaSubsetToWorkbook(headers, body){
