@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>판매사별 엑셀 매핑 자동화</title>
+  <!-- XLSX / JSZip / FileSaver (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    :root {
+      --primary: #2b6cb0; --primary-2: #2c5282; --accent: #38a169; --accent-2: #2f855a;
+      --bg: #f7fafc; --panel: #fff; --text: #1a202c; --muted: #718096; --warn: #e53e3e;
+      --control-h: 44px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; color: var(--text); background: var(--bg); }
+    .wrap { max-width: 960px; margin: 24px auto; padding: 16px; }
+    .card { background: var(--panel); border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.06); padding: 20px; }
+    h1 { margin: 0 0 8px; font-size: 24px; color: var(--primary); }
+    p.desc { margin: 0 0 16px; color: var(--muted); }
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+    .controls { display: grid; grid-template-columns: 1fr 180px 160px; gap: 12px; align-items: end;}
+    @media (max-width: 720px){ .controls{ grid-template-columns: 1fr; } .row{ grid-template-columns: 1fr; } }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+    input[type="file"], input[type="text"] { width: 100%; height: var(--control-h); padding: 12px 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+    .btn { padding: 14px 14px; border: 0; border-radius: 10px; cursor: pointer; color: #fff; background: var(--primary); font-weight: 600; }
+    .btn:hover { background: var(--primary-2); }
+    .btn.secondary{ background: var(--accent); }
+    .btn.secondary:hover{ background: var(--accent-2); }
+    .err { color: var(--warn); margin-top: 8px; min-height: 20px; }
+    .results { margin-top: 20px; }
+    .result-head { display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px; }
+    .list { display: grid; gap: 10px; }
+    .item { display: grid; grid-template-columns: 1fr 2fr .6fr .6fr auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid #edf2f7; border-radius: 10px; background: #fff; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color: #2d3748; }
+    .tag { display:inline-block; background:#edf2f7; color:#2d3748; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
+
+    /* sorter controls */
+    .sorter { display:flex; gap:8px; align-items:center; flex-wrap: wrap; margin-right: 8px; }
+    .sorter select { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background:#fff; height: 36px; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>판매사별 엑셀 매핑 자동화</h1>
+    <p class="desc"> 엑셀을 업로드하면 파일명은 <span class="mono">"브랜드-판매사명-오늘날짜-차수번호_주문건수(수량)"</span> 형식으로 생성합니다. <br/><b>T열(매출처)</b>로 분류하여 판매사별 파일을 만들고, 브랜드는 <b>V열(브랜드명)</b>에서 읽습니다. 날짜는 <span class="mono">YYYYMMDDHHmm</span> 형식으로 표시됩니다. </p>
+    <div class="controls">
+      <div>
+        <label>엑셀 업로드 (.xlsx/.xls)</label>
+        <input id="file" type="file" accept=".xlsx,.xls" />
+      </div>
+      <div>
+        <label>차수번호 (기본값: 1)</label>
+        <input id="batch" type="text" value="1차" placeholder="예) 1차" />
+      </div>
+      <div>
+        <button id="process" class="btn">분류 실행</button>
+      </div>
+    </div>
+    <div id="err" class="err"></div>
+
+    <div class="results" id="results" style="display:none;">
+      <div class="result-head">
+        <div class="tag" id="file-info">파일 정보</div>
+        <div class="sorter">
+          <label for="sort-key" class="sr-only">정렬 기준</label>
+          <select id="sort-key">
+            <option value="seller">판매처</option>
+            <option value="file">파일명</option>
+            <option value="orderCount">주문건수</option>
+            <option value="qtySum">수량</option>
+          </select>
+          <label for="sort-order" class="sr-only">정렬 방향</label>
+          <select id="sort-order">
+            <option value="asc">오름차순</option>
+            <option value="desc">내림차순</option>
+          </select>
+        </div>
+        <div>
+          <button id="download-all" class="btn secondary">전체 ZIP 다운로드</button>
+        </div>
+      </div>
+      <div class="list" id="list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+    const fileInput = $('#file');
+    const batchInput = $('#batch');
+    const processBtn = $('#process');
+    const errBox = $('#err');
+    const results = $('#results');
+    const list = $('#list');
+    const fileInfo = $('#file-info');
+    const downloadAllBtn = $('#download-all');
+    const sortKeySel = $('#sort-key');
+    const sortOrderSel = $('#sort-order');
+
+    // Helpers
+    const letterToIndex = (ch) => {
+      // 'A' -> 0, 'T' -> 19, 'V' -> 21 ...
+      return ch.toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
+    };
+
+    // 날짜 변환
+    const todayYYYYMMDDHHmm = () => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const M = String(d.getMonth() + 1).padStart(2,'0');
+      const D = String(d.getDate()).padStart(2,'0');
+      const H = String(d.getHours()).padStart(2,'0');
+      const m = String(d.getMinutes()).padStart(2,'0');
+      console.log("d", d);
+      return `${y}${M}${D}${H}${m}`; // e.g. 202509151430
+    };
+
+    // 바이너리 ArrayBuffer 변환 (Zip)
+    const toArrayBuffer = (wb, sheetName) => {
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'binary'});
+      const buf = new ArrayBuffer(wbout.length);
+      const view = new Uint8Array(buf);
+      for(let i=0; i<wbout.length; ++i) view[i] = wbout.charCodeAt(i) & 0xFF;
+      return buf;
+    };
+
+    // Core: read, split, render
+    processBtn.addEventListener('click', () => {
+      errBox.textContent = '';
+      const file = fileInput.files && fileInput.files[0];
+      if(!file){ errBox.textContent = '엑셀 파일을 선택해주세요.'; return; }
+
+      const fr = new FileReader();
+      fr.onload = (e) => {
+        try{
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+          console.log("wb", wb);
+          const ws = wb.Sheets[wb.SheetNames[0]]; // 첫 시트 사용
+          const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:false });
+          if(aoa.length === 0){ throw new Error('시트가 비어있습니다.'); }
+
+          const headers = aoa[0]; // aoa 배열의 첫 요소를 헤더로 사용
+          const rows = aoa
+            .slice(1)
+            .filter(r => Array.isArray(r) && r.some(cell => String(cell ?? "").trim() !== "")); // 헤더를 제외한 데이터 row (모든 셀이 공백일 경우 제거)
+
+          // Column positions by letter
+          const SELLER_COL = letterToIndex('T'); // 매출처
+          const BRAND_COL  = letterToIndex('V'); // 브랜드명
+
+          // quantity index: try to find header exactly '수량', else fallback null
+          const candidates = ['수량', '주문수량', '개수'];
+          const normalize = s => String(s || '').toLowerCase().replace(/\s+/g, ''); // 공백제거 & 소문자화
+
+          let qtyIdx = headers.findIndex(h => {
+            const hd = normalize(h);
+            return candidates.some(c => hd === normalize(c));
+          });
+          if(qtyIdx < 0) qtyIdx = -1; // default to each row =1
+
+          // Group by seller (T)
+          const groups = new Map(); // seller -> rows[]
+          rows.forEach(r => {
+            const key = (r[SELLER_COL]||'').toString().trim() || '미지정판매사';
+            if(!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(r);
+          });
+          console.log("groups", groups);
+
+          // derive brand string per group (V). If mixed, use first non-empty; if none -> '브랜드미지정'
+          const entries = [];
+          groups.forEach((gRows, seller) => {
+            const brandCand = (gRows.map(r => (r[BRAND_COL]||'').toString().trim()).filter(Boolean))[0] || '브랜드미지정';
+            const orderCount = gRows.length;
+
+            const parseQty = v => Number(String(v ?? '').replace(/[,]/g, '')) || 0; // 쉼표/공백/문자 섞임 방지
+            const qtySum = gRows.reduce((acc, r) => acc + (qtyIdx>=0 ? parseQty(r[qtyIdx]) : 1), 0);
+
+            entries.push({ seller, brand: brandCand, orderCount, qtySum, rows: gRows });
+          });
+          console.log("entries", entries);
+
+          // Render list + enable per-file & all-zip download
+          renderResults(file.name, headers, entries);
+        }catch(ex){
+          console.error(ex);
+          errBox.textContent = `처리 중 오류: ${ex.message||ex}`;
+        }
+      };
+      fr.readAsArrayBuffer(file);
+    });
+
+    function renderResults(filename, headers, entries){
+      results.style.display = 'block';
+      list.innerHTML = '';  // clear
+
+      const totalOrders = entries.reduce((sum, ent) => sum + (ent.orderCount || 0), 0);
+      const totalOrderCounts = entries.reduce((sum, ent) => sum + (ent.qtySum || 0), 0);
+      fileInfo.innerHTML = `${filename} — 판매사 <strong>${entries.length}개</strong> · 전체 주문건수 <strong>${totalOrders}건</strong> · 전체 주문수량 <strong>${totalOrderCounts}개</strong>` // fileInfo
+
+      const today = todayYYYYMMDDHHmm();
+      const origBase = (filename || '').replace(/\.[^.]+$/, ''); // 원본 파일 이름
+
+      if (sortKeySel) sortKeySel.value = 'qtySum';
+      if (sortOrderSel) sortOrderSel.value = 'desc';
+
+      function buildFileBase(ent) {
+        return `${ent.brand}-${ent.seller}-${(batchInput.value||'1차')}-${ent.orderCount}(${ent.qtySum})-${today}-${origBase}`;
+      }
+
+      function renderList(arr) {
+        list.innerHTML = '';
+        arr.forEach(ent => {
+          const fileBase = buildFileBase(ent);
+
+          const item = document.createElement('div');
+          item.className = 'item';
+
+          const colSeller = document.createElement('div');
+          colSeller.innerHTML = `<strong>${ent.seller}</strong>`;
+
+          const colFile = document.createElement('div');
+          colFile.innerHTML = `<span class="mono">${fileBase}.xlsx</span>`;
+
+          const colCount = document.createElement('div');
+          colCount.innerHTML = `<span class="tag">주문건수: ${ent.orderCount}</span>`;
+
+          const colQty = document.createElement('div');
+          colQty.innerHTML = `<span class="tag">수량: ${ent.qtySum}</span>`;
+
+          const colBtn = document.createElement('div');
+          const btn = document.createElement('button');
+          btn.className = 'btn';
+          btn.textContent = '다운로드';
+          btn.addEventListener('click', () => downloadOne(headers, ent.rows, fileBase));
+          colBtn.appendChild(btn);
+
+          item.appendChild(colSeller);
+          item.appendChild(colFile);
+          item.appendChild(colCount);
+          item.appendChild(colQty);
+          item.appendChild(colBtn);
+
+          list.appendChild(item);
+        });
+      }
+
+      function sortEntries(arr) {
+        const key = sortKeySel ? sortKeySel.value : 'qtySum';
+        const order = sortOrderSel ? sortOrderSel.value : 'desc';
+
+        return [...arr].sort((a, b) => {
+          let va, vb;
+          switch(key) {
+            case 'seller': va = a.seller; vb = b.seller; break;
+            case 'file': va = buildFileBase(a); vb = buildFileBase(b); break;
+            case 'orderCount': va = a.orderCount; vb = b.orderCount; break;
+            case 'qtySum': va = a.qtySum; vb = b.qtySum; break;
+            default: va = a.seller; vb = b.seller;
+          }
+          if(typeof va === 'string') va = va.toLowerCase();
+          if(typeof vb === 'string') vb = vb.toLowerCase();
+
+          if(va < vb) return order === 'asc' ? -1 : 1;
+          if(va > vb) return order === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      renderList(sortEntries(entries));
+      if (sortKeySel) {
+        sortKeySel.onchange = () => renderList(sortEntries(entries));
+      }
+      if (sortOrderSel) {
+        sortOrderSel.onchange = () => renderList(sortEntries(entries));
+      }
+
+      // bind ZIP button
+      downloadAllBtn.onclick = () => downloadAll(headers, entries, today, batchInput.value||'1차', origBase);
+    }
+
+    function aoaSubsetToWorkbook(headers, body){
+      const aoa = [headers, ...body];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'orders');
+      return wb;
+    }
+
+    function downloadOne(headers, rows, fileBase){
+      const wb = aoaSubsetToWorkbook(headers, rows);
+      XLSX.writeFile(wb, `${fileBase}.xlsx`);
+    }
+
+    async function downloadAll(headers, entries, today, batch, origBase){
+      const zip = new JSZip();
+      for(const ent of entries){
+        const wb = aoaSubsetToWorkbook(headers, ent.rows);
+        const buf = toArrayBuffer(wb);
+        const name = `${ent.brand}-${ent.seller}-${batch}-${ent.orderCount}(${ent.qtySum})--${today}${origBase}.xlsx`;
+        zip.file(name, buf);
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      saveAs(blob, `판매사별-${today}-${batch}-${origBase}.zip`);
+    }
+  })();
+</script>
+</body>
+</html>
